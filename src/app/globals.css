@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+:root {
+  --foreground-rgb: 15, 23, 42;
+  --background-rgb: 248, 250, 252;
+}
+
+body {
+  color: rgb(var(--foreground-rgb));
+  background: rgb(var(--background-rgb));
+}
+
+@layer utilities {
+  .glass-panel {
+    @apply bg-white/80 backdrop-blur-md border border-slate-200/50;
+  }
+}
+
+/* Custom checkbox */
+.task-checkbox {
+  @apply w-5 h-5 rounded-full border-2 border-slate-300 
+         hover:border-green-500 cursor-pointer transition-all
+         flex items-center justify-center;
+}
+
+.task-checkbox.checked {
+  @apply bg-green-500 border-green-500;
+}
+
+.task-checkbox.checked::after {
+  content: '✓';
+  @apply text-white text-xs font-bold;
+}
+
+/* Task item */
+.task-item {
+  @apply flex items-start gap-3 p-4 bg-white rounded-xl shadow-sm 
+         border border-slate-100 hover:shadow-md transition-all;
+}
+
+.task-item.completed .task-title {
+  @apply line-through text-slate-400;
+}
+
+/* Overdue styling */
+.task-item.overdue {
+  @apply border-l-4 border-l-red-400;
+}
