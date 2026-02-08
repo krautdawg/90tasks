@@ -8,6 +8,13 @@ services:
     environment:
       - NODE_ENV=production
       - DATABASE_PATH=/app/data/tasks.db
+      - NEXT_PUBLIC_APP_URL=https://90tasks.ki-katapult.de
+      - SMTP_HOST=postal.ki-katapult.de
+      - SMTP_PORT=587
+      - SMTP_USER=${SMTP_USER}
+      - SMTP_PASS=${SMTP_PASS}
+      - SMTP_FROM="90Tasks" <tasks@ki-katapult.de>
+      - ALLOWED_EMAILS=${ALLOWED_EMAILS}
     restart: unless-stopped
     networks:
       - coolify
