@@ -1,75 +1,89 @@
 import Database from 'better-sqlite3'
 import path from 'path'
+import fs from 'fs'
 
-const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'tasks.db')
-const db = new Database(dbPath)
+let db: Database.Database | null = null
 
-// Initialize database
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    email TEXT UNIQUE NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+function getDb(): Database.Database {
+  if (db) return db
+  
+  const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'tasks.db')
+  
+  // Ensure directory exists
+  const dbDir = path.dirname(dbPath)
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true })
+  }
+  
+  db = new Database(dbPath)
 
-  CREATE TABLE IF NOT EXISTS sessions (
-    id TEXT PRIMARY KEY,
-    user_id INTEGER NOT NULL,
-    expires_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
+  // Initialize database
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      email TEXT UNIQUE NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE TABLE IF NOT EXISTS magic_links (
-    id TEXT PRIMARY KEY,
-    email TEXT NOT NULL,
-    expires_at DATETIME NOT NULL,
-    used BOOLEAN DEFAULT FALSE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+    CREATE TABLE IF NOT EXISTS sessions (
+      id TEXT PRIMARY KEY,
+      user_id INTEGER NOT NULL,
+      expires_at DATETIME NOT NULL,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
 
-  CREATE TABLE IF NOT EXISTS lists (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    position INTEGER DEFAULT 0,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
-  );
+    CREATE TABLE IF NOT EXISTS magic_links (
+      id TEXT PRIMARY KEY,
+      email TEXT NOT NULL,
+      expires_at DATETIME NOT NULL,
+      used BOOLEAN DEFAULT FALSE,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
 
-  CREATE TABLE IF NOT EXISTS tasks (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    list_id INTEGER,
-    title TEXT NOT NULL,
-    notes TEXT,
-    due_date DATE,
-    completed BOOLEAN DEFAULT FALSE,
-    completed_at DATETIME,
-    position INTEGER DEFAULT 0,
-    parent_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id),
-    FOREIGN KEY (list_id) REFERENCES lists(id),
-    FOREIGN KEY (parent_id) REFERENCES tasks(id)
-  );
+    CREATE TABLE IF NOT EXISTS lists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      name TEXT NOT NULL,
+      position INTEGER DEFAULT 0,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id)
+    );
 
-  CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
-  CREATE INDEX IF NOT EXISTS idx_tasks_list ON tasks(list_id);
-  CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
-  CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
-`)
+    CREATE TABLE IF NOT EXISTS tasks (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL,
+      list_id INTEGER,
+      title TEXT NOT NULL,
+      notes TEXT,
+      due_date DATE,
+      completed BOOLEAN DEFAULT FALSE,
+      completed_at DATETIME,
+      position INTEGER DEFAULT 0,
+      parent_id INTEGER,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id),
+      FOREIGN KEY (list_id) REFERENCES lists(id),
+      FOREIGN KEY (parent_id) REFERENCES tasks(id)
+    );
 
-export default db
+    CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_list ON tasks(list_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
+    CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
+  `)
+  
+  return db
+}
 
 // Helper functions
 export function getUser(email: string) {
-  return db.prepare('SELECT * FROM users WHERE email = ?').get(email) as { id: number; email: string } | undefined
+  return getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as { id: number; email: string } | undefined
 }
 
 export function createUser(email: string) {
-  const result = db.prepare('INSERT INTO users (email) VALUES (?)').run(email)
+  const result = getDb().prepare('INSERT INTO users (email) VALUES (?)').run(email)
   return { id: result.lastInsertRowid as number, email }
 }
 
@@ -78,23 +92,23 @@ export function getOrCreateUser(email: string) {
 }
 
 export function createMagicLink(id: string, email: string, expiresAt: Date) {
-  db.prepare('INSERT INTO magic_links (id, email, expires_at) VALUES (?, ?, ?)').run(id, email, expiresAt.toISOString())
+  getDb().prepare('INSERT INTO magic_links (id, email, expires_at) VALUES (?, ?, ?)').run(id, email, expiresAt.toISOString())
 }
 
 export function getMagicLink(id: string) {
-  return db.prepare('SELECT * FROM magic_links WHERE id = ? AND used = FALSE AND expires_at > datetime("now")').get(id) as { id: string; email: string } | undefined
+  return getDb().prepare('SELECT * FROM magic_links WHERE id = ? AND used = FALSE AND expires_at > datetime("now")').get(id) as { id: string; email: string } | undefined
 }
 
 export function useMagicLink(id: string) {
-  db.prepare('UPDATE magic_links SET used = TRUE WHERE id = ?').run(id)
+  getDb().prepare('UPDATE magic_links SET used = TRUE WHERE id = ?').run(id)
 }
 
 export function createSession(id: string, userId: number, expiresAt: Date) {
-  db.prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(id, userId, expiresAt.toISOString())
+  getDb().prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(id, userId, expiresAt.toISOString())
 }
 
 export function getSession(id: string) {
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT s.*, u.email 
     FROM sessions s 
     JOIN users u ON s.user_id = u.id 
@@ -103,19 +117,19 @@ export function getSession(id: string) {
 }
 
 export function deleteSession(id: string) {
-  db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
+  getDb().prepare('DELETE FROM sessions WHERE id = ?').run(id)
 }
 
 // Task functions
 export function getTasks(userId: number, listId?: number) {
   if (listId) {
-    return db.prepare(`
+    return getDb().prepare(`
       SELECT * FROM tasks 
       WHERE user_id = ? AND list_id = ? AND parent_id IS NULL
       ORDER BY completed ASC, position ASC, created_at DESC
     `).all(userId, listId)
   }
-  return db.prepare(`
+  return getDb().prepare(`
     SELECT * FROM tasks 
     WHERE user_id = ? AND parent_id IS NULL
     ORDER BY completed ASC, position ASC, created_at DESC
@@ -123,11 +137,11 @@ export function getTasks(userId: number, listId?: number) {
 }
 
 export function getTask(id: number, userId: number) {
-  return db.prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, userId)
+  return getDb().prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, userId)
 }
 
 export function createTask(userId: number, data: { title: string; notes?: string; due_date?: string; list_id?: number; parent_id?: number }) {
-  const result = db.prepare(`
+  const result = getDb().prepare(`
     INSERT INTO tasks (user_id, title, notes, due_date, list_id, parent_id) 
     VALUES (?, ?, ?, ?, ?, ?)
   `).run(userId, data.title, data.notes || null, data.due_date || null, data.list_id || null, data.parent_id || null)
@@ -154,27 +168,29 @@ export function updateTask(id: number, userId: number, data: Partial<{ title: st
   values.push(new Date().toISOString())
   values.push(id, userId)
   
-  db.prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...values)
+  getDb().prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...values)
 }
 
 export function deleteTask(id: number, userId: number) {
   // Delete subtasks first
-  db.prepare('DELETE FROM tasks WHERE parent_id = ? AND user_id = ?').run(id, userId)
-  db.prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').run(id, userId)
+  getDb().prepare('DELETE FROM tasks WHERE parent_id = ? AND user_id = ?').run(id, userId)
+  getDb().prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').run(id, userId)
 }
 
 // List functions
 export function getLists(userId: number) {
-  return db.prepare('SELECT * FROM lists WHERE user_id = ? ORDER BY position ASC').all(userId)
+  return getDb().prepare('SELECT * FROM lists WHERE user_id = ? ORDER BY position ASC').all(userId)
 }
 
 export function createList(userId: number, name: string) {
-  const result = db.prepare('INSERT INTO lists (user_id, name) VALUES (?, ?)').run(userId, name)
+  const result = getDb().prepare('INSERT INTO lists (user_id, name) VALUES (?, ?)').run(userId, name)
   return { id: result.lastInsertRowid as number, name }
 }
 
 export function deleteList(id: number, userId: number) {
   // Move tasks to no list
-  db.prepare('UPDATE tasks SET list_id = NULL WHERE list_id = ? AND user_id = ?').run(id, userId)
-  db.prepare('DELETE FROM lists WHERE id = ? AND user_id = ?').run(id, userId)
+  getDb().prepare('UPDATE tasks SET list_id = NULL WHERE list_id = ? AND user_id = ?').run(id, userId)
+  getDb().prepare('DELETE FROM lists WHERE id = ? AND user_id = ?').run(id, userId)
 }
+
+export default { getDb }
