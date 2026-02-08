@@ -1,0 +1,17 @@
+services:
+  90tasks:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - 90tasks-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - DATABASE_PATH=/app/data/tasks.db
+    restart: unless-stopped
+
+volumes:
+  90tasks-data:
+    driver: local
