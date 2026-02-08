@@ -96,7 +96,7 @@ export function createMagicLink(id: string, email: string, expiresAt: Date) {
 }
 
 export function getMagicLink(id: string) {
-  return getDb().prepare('SELECT * FROM magic_links WHERE id = ? AND used = FALSE AND expires_at > datetime("now")').get(id) as { id: string; email: string } | undefined
+  return getDb().prepare("SELECT * FROM magic_links WHERE id = ? AND used = FALSE AND expires_at > datetime('now')").get(id) as { id: string; email: string } | undefined
 }
 
 export function useMagicLink(id: string) {
@@ -112,7 +112,7 @@ export function getSession(id: string) {
     SELECT s.*, u.email 
     FROM sessions s 
     JOIN users u ON s.user_id = u.id 
-    WHERE s.id = ? AND s.expires_at > datetime("now")
+    WHERE s.id = ? AND s.expires_at > datetime('now')
   `).get(id) as { id: string; user_id: number; email: string } | undefined
 }
 
