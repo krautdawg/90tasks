@@ -9,6 +9,23 @@ services:
       - NODE_ENV=production
       - DATABASE_PATH=/app/data/tasks.db
     restart: unless-stopped
+    networks:
+      - coolify
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.90tasks.rule=Host(`90tasks.ki-katapult.de`)"
+      - "traefik.http.routers.90tasks.entrypoints=https"
+      - "traefik.http.routers.90tasks.tls=true"
+      - "traefik.http.routers.90tasks.tls.certresolver=letsencrypt"
+      - "traefik.http.services.90tasks.loadbalancer.server.port=3000"
+      - "traefik.http.routers.90tasks-http.rule=Host(`90tasks.ki-katapult.de`)"
+      - "traefik.http.routers.90tasks-http.entrypoints=http"
+      - "traefik.http.routers.90tasks-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+networks:
+  coolify:
+    external: true
 
 volumes:
   90tasks-data:
