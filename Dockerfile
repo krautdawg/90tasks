@@ -19,6 +19,10 @@ RUN mkdir -p /app/data
 
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# NEXT_PUBLIC vars must be available at build time
+ARG NEXT_PUBLIC_APP_URL=https://90tasks.ki-katapult.de
+ENV NEXT_PUBLIC_APP_URL=$NEXT_PUBLIC_APP_URL
+
 RUN npm run build
 
 # Production image, copy all the files and run next
