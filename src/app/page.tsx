@@ -19,7 +19,10 @@ export default function Home() {
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
   const [newTask, setNewTask] = useState('')
+  const [newNotes, setNewNotes] = useState('')
   const [newDueDate, setNewDueDate] = useState('')
+  const [expandedTask, setExpandedTask] = useState<number | null>(null)
+  const [editingNotes, setEditingNotes] = useState<{ id: number; notes: string } | null>(null)
 
   const fetchTasks = useCallback(async () => {
     const res = await fetch('/api/tasks')
@@ -57,15 +60,27 @@ export default function Home() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         title: newTask.trim(),
+        notes: newNotes.trim() || undefined,
         due_date: newDueDate || undefined 
       }),
     })
 
     if (res.ok) {
       setNewTask('')
+      setNewNotes('')
       setNewDueDate('')
       await fetchTasks()
     }
+  }
+
+  const updateNotes = async (taskId: number, notes: string) => {
+    await fetch(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ notes }),
+    })
+    setEditingNotes(null)
+    await fetchTasks()
   }
 
   const toggleTask = async (task: Task) => {
@@ -136,32 +151,43 @@ export default function Home() {
       <main className="max-w-2xl mx-auto px-4 py-8">
         {/* Add Task Form */}
         <form onSubmit={addTask} className="mb-8">
-          <div className="flex gap-2">
+          <div className="space-y-2">
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={newTask}
+                onChange={(e) => setNewTask(e.target.value)}
+                placeholder="Add a task..."
+                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white 
+                         focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
+                         text-slate-900 placeholder-slate-400"
+                autoFocus
+              />
+              <input
+                type="date"
+                value={newDueDate}
+                onChange={(e) => setNewDueDate(e.target.value)}
+                className="px-3 py-3 rounded-xl border border-slate-200 bg-white 
+                         focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
+                         text-slate-600 w-36"
+              />
+              <button
+                type="submit"
+                className="px-6 py-3 bg-slate-900 text-white rounded-xl font-medium
+                         hover:bg-slate-800 transition-colors shadow-md"
+              >
+                Add
+              </button>
+            </div>
             <input
               type="text"
-              value={newTask}
-              onChange={(e) => setNewTask(e.target.value)}
-              placeholder="Add a task..."
-              className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white 
+              value={newNotes}
+              onChange={(e) => setNewNotes(e.target.value)}
+              placeholder="Notes (optional)"
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 bg-white 
                        focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                       text-slate-900 placeholder-slate-400"
-              autoFocus
+                       text-slate-700 placeholder-slate-400 text-sm"
             />
-            <input
-              type="date"
-              value={newDueDate}
-              onChange={(e) => setNewDueDate(e.target.value)}
-              className="px-3 py-3 rounded-xl border border-slate-200 bg-white 
-                       focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                       text-slate-600 w-36"
-            />
-            <button
-              type="submit"
-              className="px-6 py-3 bg-slate-900 text-white rounded-xl font-medium
-                       hover:bg-slate-800 transition-colors shadow-md"
-            >
-              Add
-            </button>
           </div>
         </form>
 
@@ -176,15 +202,52 @@ export default function Home() {
                 onClick={() => toggleTask(task)}
                 className="task-checkbox mt-0.5"
               />
-              <div className="flex-1 min-w-0">
+              <div 
+                className="flex-1 min-w-0 cursor-pointer"
+                onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
+              >
                 <p className="task-title text-slate-900 font-medium">{task.title}</p>
-                {task.notes && (
+                {task.notes && expandedTask !== task.id && (
                   <p className="text-sm text-slate-500 mt-1 truncate">{task.notes}</p>
                 )}
                 {task.due_date && (
                   <p className={`text-xs mt-1 ${isOverdue(task) ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
                     {formatDate(task.due_date)}
                   </p>
+                )}
+                {expandedTask === task.id && (
+                  <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                    {editingNotes?.id === task.id ? (
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={editingNotes.notes}
+                          onChange={(e) => setEditingNotes({ ...editingNotes, notes: e.target.value })}
+                          placeholder="Add notes..."
+                          className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white 
+                                   focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
+                          autoFocus
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') updateNotes(task.id, editingNotes.notes)
+                            if (e.key === 'Escape') setEditingNotes(null)
+                          }}
+                        />
+                        <button
+                          onClick={() => updateNotes(task.id, editingNotes.notes)}
+                          className="px-3 py-2 text-sm bg-slate-900 text-white rounded-lg"
+                        >
+                          Save
+                        </button>
+                      </div>
+                    ) : (
+                      <p 
+                        className="text-sm text-slate-500 p-2 bg-slate-50 rounded-lg cursor-text hover:bg-slate-100"
+                        onClick={() => setEditingNotes({ id: task.id, notes: task.notes || '' })}
+                      >
+                        {task.notes || 'Click to add notes...'}
+                      </p>
+                    )}
+                  </div>
                 )}
               </div>
               <button
