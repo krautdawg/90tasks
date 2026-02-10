@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, verifyApiKey } from '@/lib/auth'
 import { getTasks, createTask, getOrCreateUser } from '@/lib/db'
+import { createCalendarEvent } from '@/lib/google-calendar'
 
 export async function GET(request: NextRequest) {
   // Check for API key first (for Clawdbot)
@@ -55,6 +56,11 @@ export async function POST(request: NextRequest) {
       list_id: data.list_id,
       parent_id: data.parent_id,
     })
+
+    // Create Google Calendar event if task has a due date
+    if (data.due_date) {
+      createCalendarEvent(data.title, data.due_date, data.notes).catch(() => {})
+    }
     
     return NextResponse.json({ task }, { status: 201 })
   } catch (error) {

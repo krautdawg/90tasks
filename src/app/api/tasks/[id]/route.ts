@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, verifyApiKey } from '@/lib/auth'
 import { getTask, updateTask, deleteTask, getOrCreateUser } from '@/lib/db'
+import { createCalendarEvent } from '@/lib/google-calendar'
 
 async function getAuthUser(request: NextRequest) {
   if (verifyApiKey(request)) {
@@ -51,6 +52,15 @@ export async function PUT(
   try {
     const data = await request.json()
     updateTask(taskId, user.id, data)
+
+    // Create calendar event if due_date was added/changed
+    if (data.due_date && data.due_date !== (existing as Record<string, unknown>).due_date) {
+      createCalendarEvent(
+        data.title || (existing as Record<string, unknown>).title as string,
+        data.due_date,
+        data.notes || (existing as Record<string, unknown>).notes as string
+      ).catch(() => {})
+    }
     
     const updated = getTask(taskId, user.id)
     return NextResponse.json({ task: updated })
