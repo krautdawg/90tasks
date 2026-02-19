@@ -23,6 +23,8 @@ export default function Home() {
   const [newDueDate, setNewDueDate] = useState('')
   const [expandedTask, setExpandedTask] = useState<number | null>(null)
   const [editingNotes, setEditingNotes] = useState<{ id: number; notes: string } | null>(null)
+  const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'no-date'>('all')
+  const [sortBy, setSortBy] = useState<'due-asc' | 'due-desc' | 'created-desc' | 'created-asc' | 'title'>('due-asc')
 
   const fetchTasks = useCallback(async () => {
     const res = await fetch('/api/tasks')
@@ -112,11 +114,76 @@ export default function Home() {
     const today = new Date()
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
-    
-    if (date.toDateString() === today.toDateString()) return 'Today'
-    if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow'
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+
+    const hasTime = dateStr.includes('T')
+
+    if (date.toDateString() === today.toDateString()) {
+      return hasTime
+        ? `Today ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : 'Today'
+    }
+    if (date.toDateString() === tomorrow.toDateString()) {
+      return hasTime
+        ? `Tomorrow ${date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`
+        : 'Tomorrow'
+    }
+
+    return hasTime
+      ? date.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
+      : date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+  }
+
+  const isToday = (task: Task) => {
+    if (!task.due_date) return false
+    const due = new Date(task.due_date)
+    const today = new Date()
+    return due.toDateString() === today.toDateString()
+  }
+
+  const isUpcoming = (task: Task) => {
+    if (!task.due_date || task.completed) return false
+    const due = new Date(task.due_date)
+    const tomorrow = new Date()
+    tomorrow.setHours(0, 0, 0, 0)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    return due >= tomorrow
+  }
+
+  const applyDueFilter = (task: Task) => {
+    switch (dueFilter) {
+      case 'overdue':
+        return isOverdue(task)
+      case 'today':
+        return isToday(task)
+      case 'upcoming':
+        return isUpcoming(task)
+      case 'no-date':
+        return !task.due_date
+      default:
+        return true
+    }
+  }
+
+  const compareTasks = (a: Task, b: Task) => {
+    switch (sortBy) {
+      case 'due-desc': {
+        const aTime = a.due_date ? new Date(a.due_date).getTime() : -Infinity
+        const bTime = b.due_date ? new Date(b.due_date).getTime() : -Infinity
+        return bTime - aTime
+      }
+      case 'created-desc':
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      case 'created-asc':
+        return new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+      case 'title':
+        return a.title.localeCompare(b.title)
+      case 'due-asc':
+      default: {
+        const aTime = a.due_date ? new Date(a.due_date).getTime() : Infinity
+        const bTime = b.due_date ? new Date(b.due_date).getTime() : Infinity
+        return aTime - bTime
+      }
+    }
   }
 
   if (loading) {
@@ -127,8 +194,14 @@ export default function Home() {
     )
   }
 
-  const incompleteTasks = tasks.filter(t => !t.completed)
-  const completedTasks = tasks.filter(t => t.completed)
+  const incompleteTasks = tasks
+    .filter(t => !t.completed)
+    .filter(applyDueFilter)
+    .sort(compareTasks)
+
+  const completedTasks = tasks
+    .filter(t => t.completed)
+    .sort(compareTasks)
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -164,12 +237,12 @@ export default function Home() {
                 autoFocus
               />
               <input
-                type="date"
+                type="datetime-local"
                 value={newDueDate}
                 onChange={(e) => setNewDueDate(e.target.value)}
                 className="px-3 py-3 rounded-xl border border-slate-200 bg-white 
                          focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                         text-slate-600 w-36"
+                         text-slate-600 w-56"
               />
               <button
                 type="submit"
@@ -190,6 +263,38 @@ export default function Home() {
             />
           </div>
         </form>
+
+        {/* Sorting & Filtering */}
+        <div className="mb-4 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">Filter</label>
+            <select
+              value={dueFilter}
+              onChange={(e) => setDueFilter(e.target.value as 'all' | 'overdue' | 'today' | 'upcoming' | 'no-date')}
+              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700"
+            >
+              <option value="all">All</option>
+              <option value="overdue">Overdue</option>
+              <option value="today">Today</option>
+              <option value="upcoming">Upcoming</option>
+              <option value="no-date">No date</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-500">Sort</label>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as 'due-asc' | 'due-desc' | 'created-desc' | 'created-asc' | 'title')}
+              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700"
+            >
+              <option value="due-asc">Due date ↑</option>
+              <option value="due-desc">Due date ↓</option>
+              <option value="created-desc">Newest first</option>
+              <option value="created-asc">Oldest first</option>
+              <option value="title">Title A-Z</option>
+            </select>
+          </div>
+        </div>
 
         {/* Task List */}
         <div className="space-y-3">
@@ -261,6 +366,12 @@ export default function Home() {
             </div>
           ))}
         </div>
+
+        {tasks.length > 0 && incompleteTasks.length === 0 && (
+          <div className="text-center py-8">
+            <p className="text-slate-400 text-sm">No tasks match this filter.</p>
+          </div>
+        )}
 
         {/* Completed Tasks */}
         {completedTasks.length > 0 && (
