@@ -73,6 +73,13 @@ function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   `)
+
+  // Lightweight migrations
+  const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>
+  const hasStarred = taskColumns.some((col) => col.name === 'starred')
+  if (!hasStarred) {
+    db.exec('ALTER TABLE tasks ADD COLUMN starred BOOLEAN DEFAULT FALSE')
+  }
   
   return db
 }
@@ -148,7 +155,7 @@ export function createTask(userId: number, data: { title: string; notes?: string
   return { id: result.lastInsertRowid as number, ...data }
 }
 
-export function updateTask(id: number, userId: number, data: Partial<{ title: string; notes: string; due_date: string; completed: boolean; position: number; list_id: number }>) {
+export function updateTask(id: number, userId: number, data: Partial<{ title: string; notes: string; due_date: string; completed: boolean; position: number; list_id: number; starred: boolean }>) {
   const fields: string[] = []
   const values: unknown[] = []
   
@@ -163,6 +170,7 @@ export function updateTask(id: number, userId: number, data: Partial<{ title: st
   }
   if (data.position !== undefined) { fields.push('position = ?'); values.push(data.position) }
   if (data.list_id !== undefined) { fields.push('list_id = ?'); values.push(data.list_id) }
+  if (data.starred !== undefined) { fields.push('starred = ?'); values.push(data.starred ? 1 : 0) }
   
   fields.push('updated_at = ?')
   values.push(new Date().toISOString())

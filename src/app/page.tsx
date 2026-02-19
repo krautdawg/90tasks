@@ -9,6 +9,7 @@ interface Task {
   notes?: string
   due_date?: string
   completed: boolean
+  starred?: boolean
   list_id?: number
   created_at: string
 }
@@ -23,7 +24,7 @@ export default function Home() {
   const [newDueDate, setNewDueDate] = useState('')
   const [expandedTask, setExpandedTask] = useState<number | null>(null)
   const [editingNotes, setEditingNotes] = useState<{ id: number; notes: string } | null>(null)
-  const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'no-date'>('all')
+  const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'no-date' | 'starred'>('all')
   const [sortBy, setSortBy] = useState<'due-asc' | 'due-desc' | 'created-desc' | 'created-asc' | 'title'>('due-asc')
 
   const fetchTasks = useCallback(async () => {
@@ -94,6 +95,15 @@ export default function Home() {
     await fetchTasks()
   }
 
+  const toggleStar = async (task: Task) => {
+    await fetch(`/api/tasks/${task.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ starred: !task.starred }),
+    })
+    await fetchTasks()
+  }
+
   const deleteTask = async (id: number) => {
     await fetch(`/api/tasks/${id}`, { method: 'DELETE' })
     await fetchTasks()
@@ -159,6 +169,8 @@ export default function Home() {
         return isUpcoming(task)
       case 'no-date':
         return !task.due_date
+      case 'starred':
+        return !!task.starred
       default:
         return true
     }
@@ -270,10 +282,11 @@ export default function Home() {
             <label className="text-xs text-slate-500">Filter</label>
             <select
               value={dueFilter}
-              onChange={(e) => setDueFilter(e.target.value as 'all' | 'overdue' | 'today' | 'upcoming' | 'no-date')}
+              onChange={(e) => setDueFilter(e.target.value as 'all' | 'overdue' | 'today' | 'upcoming' | 'no-date' | 'starred')}
               className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700"
             >
               <option value="all">All</option>
+              <option value="starred">Starred</option>
               <option value="overdue">Overdue</option>
               <option value="today">Today</option>
               <option value="upcoming">Upcoming</option>
@@ -356,6 +369,15 @@ export default function Home() {
                 )}
               </div>
               <button
+                onClick={() => toggleStar(task)}
+                className={`transition-colors p-1 ${task.starred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
+                title={task.starred ? 'Unstar' : 'Star'}
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill={task.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m12 17.27 5.18 3.73-1.64-6.03L20 10.24l-6.19-.5L12 4 10.19 9.74 4 10.24l4.46 4.73L6.82 21z" />
+                </svg>
+              </button>
+              <button
                 onClick={() => deleteTask(task.id)}
                 className="text-slate-300 hover:text-red-500 transition-colors p-1"
               >
@@ -389,6 +411,15 @@ export default function Home() {
                   <div className="flex-1 min-w-0">
                     <p className="task-title text-slate-500">{task.title}</p>
                   </div>
+                  <button
+                    onClick={() => toggleStar(task)}
+                    className={`transition-colors p-1 ${task.starred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
+                    title={task.starred ? 'Unstar' : 'Star'}
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill={task.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m12 17.27 5.18 3.73-1.64-6.03L20 10.24l-6.19-.5L12 4 10.19 9.74 4 10.24l4.46 4.73L6.82 21z" />
+                    </svg>
+                  </button>
                   <button
                     onClick={() => deleteTask(task.id)}
                     className="text-slate-300 hover:text-red-500 transition-colors p-1"
