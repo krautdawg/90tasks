@@ -9,41 +9,41 @@ const SESSION_DURATION_DAYS = 30
 export async function getCurrentUser() {
   const cookieStore = await cookies()
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value
-  
+
   if (!sessionId) return null
-  
-  const session = getSession(sessionId)
+
+  const session = await getSession(sessionId)
   if (!session) return null
-  
+
   return { id: session.user_id, email: session.email }
 }
 
 export async function sendMagicLink(email: string) {
   const linkId = uuidv4()
   const expiresAt = new Date(Date.now() + 15 * 60 * 1000) // 15 minutes
-  
-  createMagicLink(linkId, email, expiresAt)
-  
+
+  await createMagicLink(linkId, email, expiresAt)
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'
   const magicLink = `${baseUrl}/api/auth/verify?token=${linkId}`
-  
+
   await sendMagicLinkEmail(email, magicLink)
-  
+
   return { success: true }
 }
 
 export async function verifyMagicLink(token: string) {
-  const link = getMagicLink(token)
+  const link = await getMagicLink(token)
   if (!link) return null
-  
-  useMagicLink(token)
-  
-  const user = getOrCreateUser(link.email)
+
+  await useMagicLink(token)
+
+  const user = await getOrCreateUser(link.email)
   const sessionId = uuidv4()
   const expiresAt = new Date(Date.now() + SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000)
-  
-  createSession(sessionId, user.id, expiresAt)
-  
+
+  await createSession(sessionId, user.id, expiresAt)
+
   const cookieStore = await cookies()
   cookieStore.set(SESSION_COOKIE, sessionId, {
     httpOnly: true,
@@ -52,16 +52,16 @@ export async function verifyMagicLink(token: string) {
     expires: expiresAt,
     path: '/',
   })
-  
+
   return user
 }
 
 export async function logout() {
   const cookieStore = await cookies()
   const sessionId = cookieStore.get(SESSION_COOKIE)?.value
-  
+
   if (sessionId) {
-    deleteSession(sessionId)
+    await deleteSession(sessionId)
     cookieStore.delete(SESSION_COOKIE)
   }
 }

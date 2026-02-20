@@ -3,11 +3,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    volumes:
-      - 90tasks-data:/app/data
     environment:
       - NODE_ENV=production
-      - DATABASE_PATH=/app/data/tasks.db
+      - DATABASE_URL=postgres://tasks_user:tasks_pg_2026_secure@r48kwksscgo40wwg4440s0wk:5432/tasks_db
       - NEXT_PUBLIC_APP_URL=https://90tasks.ki-katapult.de
       - SMTP_HOST=postal.ki-katapult.de
       - SMTP_PORT=587
@@ -33,7 +31,3 @@ services:
 networks:
   coolify:
     external: true
-
-volumes:
-  90tasks-data:
-    driver: local

@@ -1,71 +1,54 @@
-import Database from 'better-sqlite3'
-import path from 'path'
-import fs from 'fs'
+import { Pool, QueryResult } from 'pg'
 
-let db: Database.Database | null = null
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+})
 
-function getDb(): Database.Database {
-  if (db) return db
-  
-  const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), 'data', 'tasks.db')
-  
-  // Ensure directory exists
-  const dbDir = path.dirname(dbPath)
-  if (!fs.existsSync(dbDir)) {
-    fs.mkdirSync(dbDir, { recursive: true })
-  }
-  
-  db = new Database(dbPath)
-
-  // Initialize database
-  db.exec(`
+async function initDb() {
+  await pool.query(`
     CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      id SERIAL PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS sessions (
       id TEXT PRIMARY KEY,
-      user_id INTEGER NOT NULL,
-      expires_at DATETIME NOT NULL,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      expires_at TIMESTAMPTZ NOT NULL,
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS magic_links (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL,
-      expires_at DATETIME NOT NULL,
+      expires_at TIMESTAMPTZ NOT NULL,
       used BOOLEAN DEFAULT FALSE,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS lists (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
       name TEXT NOT NULL,
       position INTEGER DEFAULT 0,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id)
+      created_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS tasks (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      user_id INTEGER NOT NULL,
-      list_id INTEGER,
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      list_id INTEGER REFERENCES lists(id),
       title TEXT NOT NULL,
       notes TEXT,
-      due_date DATE,
+      due_date TEXT,
       completed BOOLEAN DEFAULT FALSE,
-      completed_at DATETIME,
+      completed_at TIMESTAMPTZ,
+      starred BOOLEAN DEFAULT FALSE,
       position INTEGER DEFAULT 0,
-      parent_id INTEGER,
-      created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-      FOREIGN KEY (user_id) REFERENCES users(id),
-      FOREIGN KEY (list_id) REFERENCES lists(id),
-      FOREIGN KEY (parent_id) REFERENCES tasks(id)
+      parent_id INTEGER REFERENCES tasks(id),
+      created_at TIMESTAMPTZ DEFAULT NOW(),
+      updated_at TIMESTAMPTZ DEFAULT NOW()
     );
 
     CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
@@ -73,132 +56,156 @@ function getDb(): Database.Database {
     CREATE INDEX IF NOT EXISTS idx_tasks_due ON tasks(due_date);
     CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id);
   `)
+}
 
-  // Lightweight migrations
-  const taskColumns = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>
-  const hasStarred = taskColumns.some((col) => col.name === 'starred')
-  if (!hasStarred) {
-    db.exec('ALTER TABLE tasks ADD COLUMN starred BOOLEAN DEFAULT FALSE')
+let initialized = false
+async function ensureInit() {
+  if (!initialized) {
+    await initDb()
+    initialized = true
   }
-  
-  return db
 }
 
 // Helper functions
-export function getUser(email: string) {
-  return getDb().prepare('SELECT * FROM users WHERE email = ?').get(email) as { id: number; email: string } | undefined
+export async function getUser(email: string) {
+  await ensureInit()
+  const res = await pool.query('SELECT * FROM users WHERE email = $1', [email])
+  return res.rows[0] as { id: number; email: string } | undefined
 }
 
-export function createUser(email: string) {
-  const result = getDb().prepare('INSERT INTO users (email) VALUES (?)').run(email)
-  return { id: result.lastInsertRowid as number, email }
+export async function createUser(email: string) {
+  await ensureInit()
+  const res = await pool.query('INSERT INTO users (email) VALUES ($1) RETURNING id, email', [email])
+  return res.rows[0] as { id: number; email: string }
 }
 
-export function getOrCreateUser(email: string) {
-  return getUser(email) || createUser(email)
+export async function getOrCreateUser(email: string) {
+  const user = await getUser(email)
+  if (user) return user
+  return createUser(email)
 }
 
-export function createMagicLink(id: string, email: string, expiresAt: Date) {
-  getDb().prepare('INSERT INTO magic_links (id, email, expires_at) VALUES (?, ?, ?)').run(id, email, expiresAt.toISOString())
+export async function createMagicLink(id: string, email: string, expiresAt: Date) {
+  await ensureInit()
+  await pool.query('INSERT INTO magic_links (id, email, expires_at) VALUES ($1, $2, $3)', [id, email, expiresAt.toISOString()])
 }
 
-export function getMagicLink(id: string) {
-  return getDb().prepare("SELECT * FROM magic_links WHERE id = ? AND used = FALSE AND expires_at > datetime('now')").get(id) as { id: string; email: string } | undefined
+export async function getMagicLink(id: string) {
+  await ensureInit()
+  const res = await pool.query("SELECT * FROM magic_links WHERE id = $1 AND used = FALSE AND expires_at > NOW()", [id])
+  return res.rows[0] as { id: string; email: string } | undefined
 }
 
-export function useMagicLink(id: string) {
-  getDb().prepare('UPDATE magic_links SET used = TRUE WHERE id = ?').run(id)
+export async function useMagicLink(id: string) {
+  await ensureInit()
+  await pool.query('UPDATE magic_links SET used = TRUE WHERE id = $1', [id])
 }
 
-export function createSession(id: string, userId: number, expiresAt: Date) {
-  getDb().prepare('INSERT INTO sessions (id, user_id, expires_at) VALUES (?, ?, ?)').run(id, userId, expiresAt.toISOString())
+export async function createSession(id: string, userId: number, expiresAt: Date) {
+  await ensureInit()
+  await pool.query('INSERT INTO sessions (id, user_id, expires_at) VALUES ($1, $2, $3)', [id, userId, expiresAt.toISOString()])
 }
 
-export function getSession(id: string) {
-  return getDb().prepare(`
-    SELECT s.*, u.email 
-    FROM sessions s 
-    JOIN users u ON s.user_id = u.id 
-    WHERE s.id = ? AND s.expires_at > datetime('now')
-  `).get(id) as { id: string; user_id: number; email: string } | undefined
+export async function getSession(id: string) {
+  await ensureInit()
+  const res = await pool.query(`
+    SELECT s.*, u.email
+    FROM sessions s
+    JOIN users u ON s.user_id = u.id
+    WHERE s.id = $1 AND s.expires_at > NOW()
+  `, [id])
+  return res.rows[0] as { id: string; user_id: number; email: string } | undefined
 }
 
-export function deleteSession(id: string) {
-  getDb().prepare('DELETE FROM sessions WHERE id = ?').run(id)
+export async function deleteSession(id: string) {
+  await ensureInit()
+  await pool.query('DELETE FROM sessions WHERE id = $1', [id])
 }
 
 // Task functions
-export function getTasks(userId: number, listId?: number) {
+export async function getTasks(userId: number, listId?: number) {
+  await ensureInit()
   if (listId) {
-    return getDb().prepare(`
-      SELECT * FROM tasks 
-      WHERE user_id = ? AND list_id = ? AND parent_id IS NULL
+    const res = await pool.query(`
+      SELECT * FROM tasks
+      WHERE user_id = $1 AND list_id = $2 AND parent_id IS NULL
       ORDER BY completed ASC, position ASC, created_at DESC
-    `).all(userId, listId)
+    `, [userId, listId])
+    return res.rows
   }
-  return getDb().prepare(`
-    SELECT * FROM tasks 
-    WHERE user_id = ? AND parent_id IS NULL
+  const res = await pool.query(`
+    SELECT * FROM tasks
+    WHERE user_id = $1 AND parent_id IS NULL
     ORDER BY completed ASC, position ASC, created_at DESC
-  `).all(userId)
+  `, [userId])
+  return res.rows
 }
 
-export function getTask(id: number, userId: number) {
-  return getDb().prepare('SELECT * FROM tasks WHERE id = ? AND user_id = ?').get(id, userId)
+export async function getTask(id: number, userId: number) {
+  await ensureInit()
+  const res = await pool.query('SELECT * FROM tasks WHERE id = $1 AND user_id = $2', [id, userId])
+  return res.rows[0]
 }
 
-export function createTask(userId: number, data: { title: string; notes?: string; due_date?: string; list_id?: number; parent_id?: number }) {
-  const result = getDb().prepare(`
-    INSERT INTO tasks (user_id, title, notes, due_date, list_id, parent_id) 
-    VALUES (?, ?, ?, ?, ?, ?)
-  `).run(userId, data.title, data.notes || null, data.due_date || null, data.list_id || null, data.parent_id || null)
-  return { id: result.lastInsertRowid as number, ...data }
+export async function createTask(userId: number, data: { title: string; notes?: string; due_date?: string; list_id?: number; parent_id?: number }) {
+  await ensureInit()
+  const res = await pool.query(`
+    INSERT INTO tasks (user_id, title, notes, due_date, list_id, parent_id)
+    VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING *
+  `, [userId, data.title, data.notes || null, data.due_date || null, data.list_id || null, data.parent_id || null])
+  return res.rows[0]
 }
 
-export function updateTask(id: number, userId: number, data: Partial<{ title: string; notes: string; due_date: string; completed: boolean; position: number; list_id: number; starred: boolean }>) {
+export async function updateTask(id: number, userId: number, data: Partial<{ title: string; notes: string; due_date: string; completed: boolean; position: number; list_id: number; starred: boolean }>) {
+  await ensureInit()
   const fields: string[] = []
   const values: unknown[] = []
-  
-  if (data.title !== undefined) { fields.push('title = ?'); values.push(data.title) }
-  if (data.notes !== undefined) { fields.push('notes = ?'); values.push(data.notes) }
-  if (data.due_date !== undefined) { fields.push('due_date = ?'); values.push(data.due_date) }
-  if (data.completed !== undefined) { 
-    fields.push('completed = ?'); 
-    values.push(data.completed ? 1 : 0)
-    fields.push('completed_at = ?')
+  let paramIndex = 1
+
+  if (data.title !== undefined) { fields.push(`title = $${paramIndex++}`); values.push(data.title) }
+  if (data.notes !== undefined) { fields.push(`notes = $${paramIndex++}`); values.push(data.notes) }
+  if (data.due_date !== undefined) { fields.push(`due_date = $${paramIndex++}`); values.push(data.due_date) }
+  if (data.completed !== undefined) {
+    fields.push(`completed = $${paramIndex++}`)
+    values.push(data.completed)
+    fields.push(`completed_at = $${paramIndex++}`)
     values.push(data.completed ? new Date().toISOString() : null)
   }
-  if (data.position !== undefined) { fields.push('position = ?'); values.push(data.position) }
-  if (data.list_id !== undefined) { fields.push('list_id = ?'); values.push(data.list_id) }
-  if (data.starred !== undefined) { fields.push('starred = ?'); values.push(data.starred ? 1 : 0) }
-  
-  fields.push('updated_at = ?')
+  if (data.position !== undefined) { fields.push(`position = $${paramIndex++}`); values.push(data.position) }
+  if (data.list_id !== undefined) { fields.push(`list_id = $${paramIndex++}`); values.push(data.list_id) }
+  if (data.starred !== undefined) { fields.push(`starred = $${paramIndex++}`); values.push(data.starred) }
+
+  fields.push(`updated_at = $${paramIndex++}`)
   values.push(new Date().toISOString())
   values.push(id, userId)
-  
-  getDb().prepare(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`).run(...values)
+
+  await pool.query(`UPDATE tasks SET ${fields.join(', ')} WHERE id = $${paramIndex++} AND user_id = $${paramIndex}`, values)
 }
 
-export function deleteTask(id: number, userId: number) {
-  // Delete subtasks first
-  getDb().prepare('DELETE FROM tasks WHERE parent_id = ? AND user_id = ?').run(id, userId)
-  getDb().prepare('DELETE FROM tasks WHERE id = ? AND user_id = ?').run(id, userId)
+export async function deleteTask(id: number, userId: number) {
+  await ensureInit()
+  await pool.query('DELETE FROM tasks WHERE parent_id = $1 AND user_id = $2', [id, userId])
+  await pool.query('DELETE FROM tasks WHERE id = $1 AND user_id = $2', [id, userId])
 }
 
 // List functions
-export function getLists(userId: number) {
-  return getDb().prepare('SELECT * FROM lists WHERE user_id = ? ORDER BY position ASC').all(userId)
+export async function getLists(userId: number) {
+  await ensureInit()
+  const res = await pool.query('SELECT * FROM lists WHERE user_id = $1 ORDER BY position ASC', [userId])
+  return res.rows
 }
 
-export function createList(userId: number, name: string) {
-  const result = getDb().prepare('INSERT INTO lists (user_id, name) VALUES (?, ?)').run(userId, name)
-  return { id: result.lastInsertRowid as number, name }
+export async function createList(userId: number, name: string) {
+  await ensureInit()
+  const res = await pool.query('INSERT INTO lists (user_id, name) VALUES ($1, $2) RETURNING *', [userId, name])
+  return res.rows[0]
 }
 
-export function deleteList(id: number, userId: number) {
-  // Move tasks to no list
-  getDb().prepare('UPDATE tasks SET list_id = NULL WHERE list_id = ? AND user_id = ?').run(id, userId)
-  getDb().prepare('DELETE FROM lists WHERE id = ? AND user_id = ?').run(id, userId)
+export async function deleteList(id: number, userId: number) {
+  await ensureInit()
+  await pool.query('UPDATE tasks SET list_id = NULL WHERE list_id = $1 AND user_id = $2', [id, userId])
+  await pool.query('DELETE FROM lists WHERE id = $1 AND user_id = $2', [id, userId])
 }
 
-export default { getDb }
+export default { pool }
