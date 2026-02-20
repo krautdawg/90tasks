@@ -276,29 +276,38 @@ export default function Home() {
           </div>
         </form>
 
-        {/* Sorting & Filtering */}
-        <div className="mb-4 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Filter</label>
-            <select
-              value={dueFilter}
-              onChange={(e) => setDueFilter(e.target.value as 'all' | 'overdue' | 'today' | 'upcoming' | 'no-date' | 'starred')}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700"
-            >
-              <option value="all">All</option>
-              <option value="starred">Starred</option>
-              <option value="overdue">Overdue</option>
-              <option value="today">Today</option>
-              <option value="upcoming">Upcoming</option>
-              <option value="no-date">No date</option>
-            </select>
+        {/* Filter Pills */}
+        <div className="mb-4 space-y-3">
+          <div className="flex flex-wrap gap-2">
+            {([
+              ['all', 'All'],
+              ['starred', '★ Starred'],
+              ['overdue', 'Overdue'],
+              ['today', 'Today'],
+              ['upcoming', 'Upcoming'],
+              ['no-date', 'No date'],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                onClick={() => setDueFilter(value)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-all ${
+                  dueFilter === value
+                    ? 'bg-slate-900 text-white shadow-sm'
+                    : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
           <div className="flex items-center gap-2">
-            <label className="text-xs text-slate-500">Sort</label>
+            <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Sort</span>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'due-asc' | 'due-desc' | 'created-desc' | 'created-asc' | 'title')}
-              className="px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white text-slate-700"
+              className="px-3 py-1.5 text-sm rounded-full border border-slate-200 bg-white text-slate-700
+                       hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
+                       cursor-pointer"
             >
               <option value="due-asc">Due date ↑</option>
               <option value="due-desc">Due date ↓</option>
