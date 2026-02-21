@@ -7,11 +7,11 @@ services:
       - NODE_ENV=production
       - DATABASE_URL=postgres://tasks_user:tasks_pg_2026_secure@r48kwksscgo40wwg4440s0wk:5432/tasks_db
       - NEXT_PUBLIC_APP_URL=https://90tasks.ki-katapult.de
-      - SMTP_HOST=postal.ki-katapult.de
-      - SMTP_PORT=587
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_PORT=${SMTP_PORT}
       - SMTP_USER=${SMTP_USER}
       - SMTP_PASS=${SMTP_PASS}
-      - SMTP_FROM="90Tasks" <tasks@ki-katapult.de>
+      - SMTP_FROM=${SMTP_FROM}
       - ALLOWED_EMAILS=${ALLOWED_EMAILS}
     restart: unless-stopped
     networks:
