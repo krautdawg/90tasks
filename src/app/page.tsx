@@ -2,12 +2,14 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
+import { formatRecurrenceRule } from '@/lib/recurrence'
 
 interface Task {
   id: number
   title: string
   notes?: string
   due_date?: string
+  recurrence_rule?: string
   completed: boolean
   starred?: boolean
   list_id?: number
@@ -22,6 +24,11 @@ export default function Home() {
   const [newTask, setNewTask] = useState('')
   const [newNotes, setNewNotes] = useState('')
   const [newDueDate, setNewDueDate] = useState('')
+  const [newRecurrenceType, setNewRecurrenceType] = useState<'none' | 'daily' | 'weekly' | 'monthly' | 'monthly-day'>('none')
+  const [newRecurrenceDay, setNewRecurrenceDay] = useState('monday')
+  const [newRecurrenceDate, setNewRecurrenceDate] = useState('1')
+  const [newRecurrenceOccurrence, setNewRecurrenceOccurrence] = useState('1st')
+  
   const [expandedTask, setExpandedTask] = useState<number | null>(null)
   const [editingNotes, setEditingNotes] = useState<{ id: number; notes: string } | null>(null)
   const [dueFilter, setDueFilter] = useState<'all' | 'overdue' | 'today' | 'upcoming' | 'no-date' | 'starred'>('all')
@@ -54,6 +61,15 @@ export default function Home() {
     init()
   }, [router, fetchTasks])
 
+  const getRecurrenceRule = (type: string, day: string, date: string, occurrence: string) => {
+    if (type === 'none') return undefined
+    if (type === 'daily') return 'daily'
+    if (type === 'weekly') return `weekly:${day}`
+    if (type === 'monthly') return `monthly:${occurrence}-${day}`
+    if (type === 'monthly-day') return `monthly:day-${date}`
+    return undefined
+  }
+
   const addTask = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newTask.trim()) return
@@ -64,7 +80,8 @@ export default function Home() {
       body: JSON.stringify({ 
         title: newTask.trim(),
         notes: newNotes.trim() || undefined,
-        due_date: newDueDate || undefined 
+        due_date: newDueDate || undefined,
+        recurrence_rule: getRecurrenceRule(newRecurrenceType, newRecurrenceDay, newRecurrenceDate, newRecurrenceOccurrence)
       }),
     })
 
@@ -72,6 +89,7 @@ export default function Home() {
       setNewTask('')
       setNewNotes('')
       setNewDueDate('')
+      setNewRecurrenceType('none')
       await fetchTasks()
     }
   }
@@ -83,6 +101,15 @@ export default function Home() {
       body: JSON.stringify({ notes }),
     })
     setEditingNotes(null)
+    await fetchTasks()
+  }
+
+  const updateRecurrence = async (taskId: number, rule: string | undefined) => {
+    await fetch(`/api/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recurrence_rule: rule || null }),
+    })
     await fetchTasks()
   }
 
@@ -264,15 +291,74 @@ export default function Home() {
                 Add
               </button>
             </div>
-            <input
-              type="text"
-              value={newNotes}
-              onChange={(e) => setNewNotes(e.target.value)}
-              placeholder="Notes (optional)"
-              className="w-full px-4 py-2 rounded-xl border border-slate-200 bg-white 
-                       focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                       text-slate-700 placeholder-slate-400 text-sm"
-            />
+            <div className="flex flex-wrap gap-2 items-center">
+              <input
+                type="text"
+                value={newNotes}
+                onChange={(e) => setNewNotes(e.target.value)}
+                placeholder="Notes (optional)"
+                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 bg-white 
+                         focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
+                         text-slate-700 placeholder-slate-400 text-sm"
+              />
+              <select
+                value={newRecurrenceType}
+                onChange={(e) => setNewRecurrenceType(e.target.value as any)}
+                className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+              >
+                <option value="none">No Recurrence</option>
+                <option value="daily">Daily</option>
+                <option value="weekly">Weekly</option>
+                <option value="monthly">Monthly (Nth Day)</option>
+                <option value="monthly-day">Monthly (Specific Day)</option>
+              </select>
+
+              {newRecurrenceType === 'weekly' && (
+                <select
+                  value={newRecurrenceDay}
+                  onChange={(e) => setNewRecurrenceDay(e.target.value)}
+                  className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                >
+                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
+                    <option key={d} value={d.toLowerCase()}>{d}</option>
+                  ))}
+                </select>
+              )}
+
+              {newRecurrenceType === 'monthly' && (
+                <>
+                  <select
+                    value={newRecurrenceOccurrence}
+                    onChange={(e) => setNewRecurrenceOccurrence(e.target.value)}
+                    className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                  >
+                    {['1st', '2nd', '3rd', '4th'].map(o => (
+                      <option key={o} value={o}>{o}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={newRecurrenceDay}
+                    onChange={(e) => setNewRecurrenceDay(e.target.value)}
+                    className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                  >
+                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
+                      <option key={d} value={d.toLowerCase()}>{d}</option>
+                    ))}
+                  </select>
+                </>
+              )}
+
+              {newRecurrenceType === 'monthly-day' && (
+                <input
+                  type="number"
+                  min="1"
+                  max="28"
+                  value={newRecurrenceDate}
+                  onChange={(e) => setNewRecurrenceDate(e.target.value)}
+                  className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700 w-20"
+                />
+              )}
+            </div>
           </div>
         </form>
 
@@ -333,7 +419,17 @@ export default function Home() {
                 className="flex-1 min-w-0 cursor-pointer"
                 onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
               >
-                <p className="task-title text-slate-900 font-medium">{task.title}</p>
+                <div className="flex items-center gap-2">
+                  <p className="task-title text-slate-900 font-medium">{task.title}</p>
+                  {task.recurrence_rule && (
+                    <span 
+                      title={formatRecurrenceRule(task.recurrence_rule)}
+                      className="text-xs cursor-help"
+                    >
+                      ♻️
+                    </span>
+                  )}
+                </div>
                 {task.notes && expandedTask !== task.id && (
                   <p className="text-sm text-slate-500 mt-1 truncate">{task.notes}</p>
                 )}
@@ -374,6 +470,32 @@ export default function Home() {
                         {task.notes || 'Click to add notes...'}
                       </p>
                     )}
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Recurrence</span>
+                      <select
+                        value={task.recurrence_rule ? (task.recurrence_rule.split(':')[0] === 'monthly' && task.recurrence_rule.includes('day-') ? 'monthly-day' : task.recurrence_rule.split(':')[0]) : 'none'}
+                        onChange={(e) => {
+                          const type = e.target.value
+                          if (type === 'none') updateRecurrence(task.id, undefined)
+                          else if (type === 'daily') updateRecurrence(task.id, 'daily')
+                          else if (type === 'weekly') updateRecurrence(task.id, 'weekly:monday')
+                          else if (type === 'monthly') updateRecurrence(task.id, 'monthly:1st-monday')
+                          else if (type === 'monthly-day') updateRecurrence(task.id, 'monthly:day-1')
+                        }}
+                        className="px-2 py-1 text-xs rounded border border-slate-200 bg-white text-slate-700"
+                      >
+                        <option value="none">None</option>
+                        <option value="daily">Daily</option>
+                        <option value="weekly">Weekly</option>
+                        <option value="monthly">Monthly (Nth)</option>
+                        <option value="monthly-day">Monthly (Day)</option>
+                      </select>
+                      {task.recurrence_rule && (
+                        <span className="text-xs text-slate-500 italic">
+                          ({formatRecurrenceRule(task.recurrence_rule)})
+                        </span>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

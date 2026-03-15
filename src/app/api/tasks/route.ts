@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       title: data.title,
       notes: data.notes,
       due_date: data.due_date,
+      recurrence_rule: data.recurrence_rule,
       list_id: data.list_id,
       parent_id: data.parent_id,
     })

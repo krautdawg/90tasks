@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getCurrentUser, verifyApiKey } from '@/lib/auth'
-import { getTask, updateTask, deleteTask, getOrCreateUser } from '@/lib/db'
+import { getTask, updateTask, deleteTask, getOrCreateUser, createTask } from '@/lib/db'
 import { createCalendarEvent } from '@/lib/google-calendar'
+import { computeNextDueDate } from '@/lib/recurrence'
 
 async function getAuthUser(request: NextRequest) {
   if (verifyApiKey(request)) {
@@ -44,7 +45,7 @@ export async function PUT(
   const { id } = await params
   const taskId = parseInt(id)
 
-  const existing = await getTask(taskId, user.id)
+  const existing = await getTask(taskId, user.id) as any
   if (!existing) {
     return NextResponse.json({ error: 'Task not found' }, { status: 404 })
   }
@@ -53,12 +54,27 @@ export async function PUT(
     const data = await request.json()
     await updateTask(taskId, user.id, data)
 
+    // Handle recurrence
+    if (data.completed === true && !existing.completed && existing.recurrence_rule) {
+      const from = existing.due_date ? new Date(existing.due_date) : new Date()
+      const nextDue = computeNextDueDate(existing.recurrence_rule, from)
+      
+      await createTask(user.id, {
+        title: existing.title,
+        notes: existing.notes,
+        due_date: nextDue.toISOString().split('T')[0],
+        recurrence_rule: existing.recurrence_rule,
+        list_id: existing.list_id,
+        parent_id: existing.parent_id,
+      })
+    }
+
     // Create calendar event if due_date was added/changed
-    if (data.due_date && data.due_date !== (existing as Record<string, unknown>).due_date) {
+    if (data.due_date && data.due_date !== existing.due_date) {
       createCalendarEvent(
-        data.title || (existing as Record<string, unknown>).title as string,
+        data.title || existing.title,
         data.due_date,
-        data.notes || (existing as Record<string, unknown>).notes as string
+        data.notes || existing.notes
       ).catch(() => {})
     }
 

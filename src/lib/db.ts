@@ -42,6 +42,7 @@ async function initDb() {
       title TEXT NOT NULL,
       notes TEXT,
       due_date TEXT,
+      recurrence_rule TEXT,
       completed BOOLEAN DEFAULT FALSE,
       completed_at TIMESTAMPTZ,
       starred BOOLEAN DEFAULT FALSE,
@@ -50,6 +51,14 @@ async function initDb() {
       created_at TIMESTAMPTZ DEFAULT NOW(),
       updated_at TIMESTAMPTZ DEFAULT NOW()
     );
+
+    -- Add recurrence_rule if it doesn't exist (for existing databases)
+    DO $$
+    BEGIN
+      IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='tasks' AND column_name='recurrence_rule') THEN
+        ALTER TABLE tasks ADD COLUMN recurrence_rule TEXT;
+      END IF;
+    END $$;
 
     CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_list ON tasks(list_id);
@@ -147,17 +156,17 @@ export async function getTask(id: number, userId: number) {
   return res.rows[0]
 }
 
-export async function createTask(userId: number, data: { title: string; notes?: string; due_date?: string; list_id?: number; parent_id?: number }) {
+export async function createTask(userId: number, data: { title: string; notes?: string; due_date?: string; recurrence_rule?: string; list_id?: number; parent_id?: number }) {
   await ensureInit()
   const res = await pool.query(`
-    INSERT INTO tasks (user_id, title, notes, due_date, list_id, parent_id)
-    VALUES ($1, $2, $3, $4, $5, $6)
+    INSERT INTO tasks (user_id, title, notes, due_date, recurrence_rule, list_id, parent_id)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
-  `, [userId, data.title, data.notes || null, data.due_date || null, data.list_id || null, data.parent_id || null])
+  `, [userId, data.title, data.notes || null, data.due_date || null, data.recurrence_rule || null, data.list_id || null, data.parent_id || null])
   return res.rows[0]
 }
 
-export async function updateTask(id: number, userId: number, data: Partial<{ title: string; notes: string; due_date: string; completed: boolean; position: number; list_id: number; starred: boolean }>) {
+export async function updateTask(id: number, userId: number, data: Partial<{ title: string; notes: string; due_date: string; recurrence_rule: string; completed: boolean; position: number; list_id: number; starred: boolean }>) {
   await ensureInit()
   const fields: string[] = []
   const values: unknown[] = []
@@ -166,6 +175,7 @@ export async function updateTask(id: number, userId: number, data: Partial<{ tit
   if (data.title !== undefined) { fields.push(`title = $${paramIndex++}`); values.push(data.title) }
   if (data.notes !== undefined) { fields.push(`notes = $${paramIndex++}`); values.push(data.notes) }
   if (data.due_date !== undefined) { fields.push(`due_date = $${paramIndex++}`); values.push(data.due_date) }
+  if (data.recurrence_rule !== undefined) { fields.push(`recurrence_rule = $${paramIndex++}`); values.push(data.recurrence_rule) }
   if (data.completed !== undefined) {
     fields.push(`completed = $${paramIndex++}`)
     values.push(data.completed)
