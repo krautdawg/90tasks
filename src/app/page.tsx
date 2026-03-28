@@ -28,6 +28,7 @@ export default function Home() {
   const [newRecurrenceDay, setNewRecurrenceDay] = useState('monday')
   const [newRecurrenceDate, setNewRecurrenceDate] = useState('1')
   const [newRecurrenceOccurrence, setNewRecurrenceOccurrence] = useState('1st')
+  const [showExtras, setShowExtras] = useState(false)
   
   const [expandedTask, setExpandedTask] = useState<number | null>(null)
   const [editingNotes, setEditingNotes] = useState<{ id: number; notes: string } | null>(null)
@@ -90,6 +91,7 @@ export default function Home() {
       setNewNotes('')
       setNewDueDate('')
       setNewRecurrenceType('none')
+      setShowExtras(false)
       await fetchTasks()
     }
   }
@@ -246,13 +248,13 @@ export default function Home() {
     <div className="min-h-screen bg-slate-50">
       {/* Header */}
       <header className="glass-panel sticky top-0 z-10 border-b border-slate-200/50">
-        <div className="max-w-2xl mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold text-slate-900">90Tasks</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-sm text-slate-500">{user?.email}</span>
+        <div className="max-w-2xl mx-auto px-3 sm:px-4 py-3 flex items-center justify-between">
+          <h1 className="text-lg sm:text-xl font-bold text-slate-900 shrink-0">90Tasks</h1>
+          <div className="flex items-center gap-2 sm:gap-4 min-w-0">
+            <span className="text-xs sm:text-sm text-slate-500 truncate max-w-[120px] sm:max-w-none">{user?.email}</span>
             <button
               onClick={logout}
-              className="text-sm text-slate-500 hover:text-slate-900 transition-colors"
+              className="text-xs sm:text-sm text-slate-500 hover:text-slate-900 transition-colors shrink-0"
             >
               Logout
             </button>
@@ -260,111 +262,130 @@ export default function Home() {
         </div>
       </header>
 
-      <main className="max-w-2xl mx-auto px-4 py-8">
+      <main className="max-w-2xl mx-auto px-3 sm:px-4 py-4 sm:py-8">
         {/* Add Task Form */}
-        <form onSubmit={addTask} className="mb-8">
+        <form onSubmit={addTask} className="mb-6">
           <div className="space-y-2">
+            {/* Primary row: task title + add button */}
             <div className="flex gap-2">
               <input
                 type="text"
                 value={newTask}
                 onChange={(e) => setNewTask(e.target.value)}
                 placeholder="Add a task..."
-                className="flex-1 px-4 py-3 rounded-xl border border-slate-200 bg-white 
+                className="flex-1 min-w-0 px-3 sm:px-4 py-2.5 sm:py-3 rounded-xl border border-slate-200 bg-white 
                          focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                         text-slate-900 placeholder-slate-400"
+                         text-slate-900 placeholder-slate-400 text-sm sm:text-base"
                 autoFocus
-              />
-              <input
-                type="datetime-local"
-                value={newDueDate}
-                onChange={(e) => setNewDueDate(e.target.value)}
-                className="px-3 py-3 rounded-xl border border-slate-200 bg-white 
-                         focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                         text-slate-600 w-56"
               />
               <button
                 type="submit"
-                className="px-6 py-3 bg-slate-900 text-white rounded-xl font-medium
-                         hover:bg-slate-800 transition-colors shadow-md"
+                className="px-4 sm:px-6 py-2.5 sm:py-3 bg-slate-900 text-white rounded-xl font-medium
+                         hover:bg-slate-800 transition-colors shadow-md text-sm sm:text-base shrink-0"
               >
                 Add
               </button>
             </div>
-            <div className="flex flex-wrap gap-2 items-center">
-              <input
-                type="text"
-                value={newNotes}
-                onChange={(e) => setNewNotes(e.target.value)}
-                placeholder="Notes (optional)"
-                className="flex-1 px-4 py-2 rounded-xl border border-slate-200 bg-white 
-                         focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
-                         text-slate-700 placeholder-slate-400 text-sm"
-              />
-              <select
-                value={newRecurrenceType}
-                onChange={(e) => setNewRecurrenceType(e.target.value as any)}
-                className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+
+            {/* Date picker row */}
+            <input
+              type="datetime-local"
+              value={newDueDate}
+              onChange={(e) => setNewDueDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white 
+                       focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
+                       text-slate-600 text-sm"
+            />
+
+            {/* Toggle for notes + recurrence */}
+            {!showExtras && (
+              <button
+                type="button"
+                onClick={() => setShowExtras(true)}
+                className="text-xs text-slate-400 hover:text-slate-600 transition-colors py-1"
               >
-                <option value="none">No Recurrence</option>
-                <option value="daily">Daily</option>
-                <option value="weekly">Weekly</option>
-                <option value="monthly">Monthly (Nth Day)</option>
-                <option value="monthly-day">Monthly (Specific Day)</option>
-              </select>
+                + Notes & Recurrence
+              </button>
+            )}
 
-              {newRecurrenceType === 'weekly' && (
-                <select
-                  value={newRecurrenceDay}
-                  onChange={(e) => setNewRecurrenceDay(e.target.value)}
-                  className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
-                >
-                  {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
-                    <option key={d} value={d.toLowerCase()}>{d}</option>
-                  ))}
-                </select>
-              )}
-
-              {newRecurrenceType === 'monthly' && (
-                <>
-                  <select
-                    value={newRecurrenceOccurrence}
-                    onChange={(e) => setNewRecurrenceOccurrence(e.target.value)}
-                    className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
-                  >
-                    {['1st', '2nd', '3rd', '4th'].map(o => (
-                      <option key={o} value={o}>{o}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={newRecurrenceDay}
-                    onChange={(e) => setNewRecurrenceDay(e.target.value)}
-                    className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
-                  >
-                    {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
-                      <option key={d} value={d.toLowerCase()}>{d}</option>
-                    ))}
-                  </select>
-                </>
-              )}
-
-              {newRecurrenceType === 'monthly-day' && (
+            {showExtras && (
+              <div className="space-y-2">
                 <input
-                  type="number"
-                  min="1"
-                  max="28"
-                  value={newRecurrenceDate}
-                  onChange={(e) => setNewRecurrenceDate(e.target.value)}
-                  className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700 w-20"
+                  type="text"
+                  value={newNotes}
+                  onChange={(e) => setNewNotes(e.target.value)}
+                  placeholder="Notes (optional)"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white 
+                           focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
+                           text-slate-700 placeholder-slate-400 text-sm"
                 />
-              )}
-            </div>
+                <div className="flex flex-wrap gap-2 items-center">
+                  <select
+                    value={newRecurrenceType}
+                    onChange={(e) => setNewRecurrenceType(e.target.value as any)}
+                    className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                  >
+                    <option value="none">No Recurrence</option>
+                    <option value="daily">Daily</option>
+                    <option value="weekly">Weekly</option>
+                    <option value="monthly">Monthly (Nth Day)</option>
+                    <option value="monthly-day">Monthly (Specific Day)</option>
+                  </select>
+
+                  {newRecurrenceType === 'weekly' && (
+                    <select
+                      value={newRecurrenceDay}
+                      onChange={(e) => setNewRecurrenceDay(e.target.value)}
+                      className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                    >
+                      {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
+                        <option key={d} value={d.toLowerCase()}>{d}</option>
+                      ))}
+                    </select>
+                  )}
+
+                  {newRecurrenceType === 'monthly' && (
+                    <>
+                      <select
+                        value={newRecurrenceOccurrence}
+                        onChange={(e) => setNewRecurrenceOccurrence(e.target.value)}
+                        className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                      >
+                        {['1st', '2nd', '3rd', '4th'].map(o => (
+                          <option key={o} value={o}>{o}</option>
+                        ))}
+                      </select>
+                      <select
+                        value={newRecurrenceDay}
+                        onChange={(e) => setNewRecurrenceDay(e.target.value)}
+                        className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700"
+                      >
+                        {['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'].map(d => (
+                          <option key={d} value={d.toLowerCase()}>{d}</option>
+                        ))}
+                      </select>
+                    </>
+                  )}
+
+                  {newRecurrenceType === 'monthly-day' && (
+                    <input
+                      type="number"
+                      min="1"
+                      max="28"
+                      value={newRecurrenceDate}
+                      onChange={(e) => setNewRecurrenceDate(e.target.value)}
+                      className="px-3 py-2 text-sm rounded-xl border border-slate-200 bg-white text-slate-700 w-20"
+                    />
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </form>
 
-        {/* Filter Pills */}
-        <div className="mb-4 space-y-3">
-          <div className="flex flex-wrap gap-2">
+        {/* Filter Pills + Sort */}
+        <div className="mb-4 space-y-2">
+          <div className="flex flex-wrap gap-1.5 sm:gap-2">
             {([
               ['all', 'All'],
               ['starred', '★ Starred'],
@@ -376,7 +397,7 @@ export default function Home() {
               <button
                 key={value}
                 onClick={() => setDueFilter(value)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-full transition-all ${
+                className={`px-2.5 sm:px-3 py-1 sm:py-1.5 text-xs sm:text-sm font-medium rounded-full transition-all ${
                   dueFilter === value
                     ? 'bg-slate-900 text-white shadow-sm'
                     : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300 hover:bg-slate-50'
@@ -391,7 +412,7 @@ export default function Home() {
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'due-asc' | 'due-desc' | 'created-desc' | 'created-asc' | 'title')}
-              className="px-3 py-1.5 text-sm rounded-full border border-slate-200 bg-white text-slate-700
+              className="px-2.5 py-1 text-xs sm:text-sm rounded-full border border-slate-200 bg-white text-slate-700
                        hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500
                        cursor-pointer"
             >
@@ -405,7 +426,7 @@ export default function Home() {
         </div>
 
         {/* Task List */}
-        <div className="space-y-3">
+        <div className="space-y-2 sm:space-y-3">
           {incompleteTasks.map((task) => (
             <div
               key={task.id}
@@ -413,28 +434,28 @@ export default function Home() {
             >
               <button
                 onClick={() => toggleTask(task)}
-                className="task-checkbox mt-0.5"
+                className="task-checkbox mt-0.5 shrink-0"
               />
               <div 
                 className="flex-1 min-w-0 cursor-pointer"
                 onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}
               >
-                <div className="flex items-center gap-2">
-                  <p className="task-title text-slate-900 font-medium">{task.title}</p>
+                <div className="flex items-center gap-1.5">
+                  <p className="task-title text-slate-900 font-medium text-sm sm:text-base">{task.title}</p>
                   {task.recurrence_rule && (
                     <span 
                       title={formatRecurrenceRule(task.recurrence_rule)}
-                      className="text-xs cursor-help"
+                      className="text-xs cursor-help shrink-0"
                     >
                       ♻️
                     </span>
                   )}
                 </div>
                 {task.notes && expandedTask !== task.id && (
-                  <p className="text-sm text-slate-500 mt-1 truncate">{task.notes}</p>
+                  <p className="text-xs sm:text-sm text-slate-500 mt-0.5 truncate">{task.notes}</p>
                 )}
                 {task.due_date && (
-                  <p className={`text-xs mt-1 ${isOverdue(task) ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
+                  <p className={`text-xs mt-0.5 ${isOverdue(task) ? 'text-red-500 font-medium' : 'text-slate-400'}`}>
                     {formatDate(task.due_date)}
                   </p>
                 )}
@@ -447,7 +468,7 @@ export default function Home() {
                           value={editingNotes.notes}
                           onChange={(e) => setEditingNotes({ ...editingNotes, notes: e.target.value })}
                           placeholder="Add notes..."
-                          className="flex-1 px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white 
+                          className="flex-1 min-w-0 px-3 py-2 text-sm rounded-lg border border-slate-200 bg-white 
                                    focus:outline-none focus:ring-2 focus:ring-green-500/20 focus:border-green-500"
                           autoFocus
                           onKeyDown={(e) => {
@@ -457,7 +478,7 @@ export default function Home() {
                         />
                         <button
                           onClick={() => updateNotes(task.id, editingNotes.notes)}
-                          className="px-3 py-2 text-sm bg-slate-900 text-white rounded-lg"
+                          className="px-3 py-2 text-sm bg-slate-900 text-white rounded-lg shrink-0"
                         >
                           Save
                         </button>
@@ -470,7 +491,7 @@ export default function Home() {
                         {task.notes || 'Click to add notes...'}
                       </p>
                     )}
-                    <div className="mt-2 flex items-center gap-2">
+                    <div className="mt-2 flex items-center gap-2 flex-wrap">
                       <span className="text-xs font-medium text-slate-400 uppercase tracking-wide">Recurrence</span>
                       <select
                         value={task.recurrence_rule ? (task.recurrence_rule.split(':')[0] === 'monthly' && task.recurrence_rule.includes('day-') ? 'monthly-day' : task.recurrence_rule.split(':')[0]) : 'none'}
@@ -499,23 +520,25 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              <button
-                onClick={() => toggleStar(task)}
-                className={`transition-colors p-1 ${task.starred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
-                title={task.starred ? 'Unstar' : 'Star'}
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24" fill={task.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m12 17.27 5.18 3.73-1.64-6.03L20 10.24l-6.19-.5L12 4 10.19 9.74 4 10.24l4.46 4.73L6.82 21z" />
-                </svg>
-              </button>
-              <button
-                onClick={() => deleteTask(task.id)}
-                className="text-slate-300 hover:text-red-500 transition-colors p-1"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
+              <div className="flex items-center gap-0.5 shrink-0">
+                <button
+                  onClick={() => toggleStar(task)}
+                  className={`transition-colors p-1 ${task.starred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
+                  title={task.starred ? 'Unstar' : 'Star'}
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill={task.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m12 17.27 5.18 3.73-1.64-6.03L20 10.24l-6.19-.5L12 4 10.19 9.74 4 10.24l4.46 4.73L6.82 21z" />
+                  </svg>
+                </button>
+                <button
+                  onClick={() => deleteTask(task.id)}
+                  className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                >
+                  <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -528,37 +551,39 @@ export default function Home() {
 
         {/* Completed Tasks */}
         {completedTasks.length > 0 && (
-          <div className="mt-8">
-            <h2 className="text-sm font-medium text-slate-400 mb-3">
+          <div className="mt-6 sm:mt-8">
+            <h2 className="text-sm font-medium text-slate-400 mb-2 sm:mb-3">
               Completed ({completedTasks.length})
             </h2>
-            <div className="space-y-2">
+            <div className="space-y-1.5 sm:space-y-2">
               {completedTasks.map((task) => (
                 <div key={task.id} className="task-item completed opacity-60">
                   <button
                     onClick={() => toggleTask(task)}
-                    className="task-checkbox checked mt-0.5"
+                    className="task-checkbox checked mt-0.5 shrink-0"
                   />
                   <div className="flex-1 min-w-0">
-                    <p className="task-title text-slate-500">{task.title}</p>
+                    <p className="task-title text-slate-500 text-sm sm:text-base">{task.title}</p>
                   </div>
-                  <button
-                    onClick={() => toggleStar(task)}
-                    className={`transition-colors p-1 ${task.starred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
-                    title={task.starred ? 'Unstar' : 'Star'}
-                  >
-                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill={task.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="m12 17.27 5.18 3.73-1.64-6.03L20 10.24l-6.19-.5L12 4 10.19 9.74 4 10.24l4.46 4.73L6.82 21z" />
-                    </svg>
-                  </button>
-                  <button
-                    onClick={() => deleteTask(task.id)}
-                    className="text-slate-300 hover:text-red-500 transition-colors p-1"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
+                  <div className="flex items-center gap-0.5 shrink-0">
+                    <button
+                      onClick={() => toggleStar(task)}
+                      className={`transition-colors p-1 ${task.starred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-500'}`}
+                      title={task.starred ? 'Unstar' : 'Star'}
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" viewBox="0 0 24 24" fill={task.starred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="m12 17.27 5.18 3.73-1.64-6.03L20 10.24l-6.19-.5L12 4 10.19 9.74 4 10.24l4.46 4.73L6.82 21z" />
+                      </svg>
+                    </button>
+                    <button
+                      onClick={() => deleteTask(task.id)}
+                      className="text-slate-300 hover:text-red-500 transition-colors p-1"
+                    >
+                      <svg className="w-4 h-4 sm:w-5 sm:h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -566,7 +591,7 @@ export default function Home() {
         )}
 
         {tasks.length === 0 && (
-          <div className="text-center py-16">
+          <div className="text-center py-12 sm:py-16">
             <p className="text-slate-400">No tasks yet. Add one above!</p>
           </div>
         )}

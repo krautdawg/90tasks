@@ -38,7 +38,7 @@ body {
 
 /* Task item */
 .task-item {
-  @apply flex items-start gap-3 p-4 bg-white rounded-xl shadow-sm 
+  @apply flex items-start gap-2 sm:gap-3 p-3 sm:p-4 bg-white rounded-xl shadow-sm 
          border border-slate-100 hover:shadow-md transition-all;
 }
 
@@ -49,4 +49,11 @@ body {
 /* Overdue styling */
 .task-item.overdue {
   @apply border-l-4 border-l-red-400;
+}
+
+/* Mobile viewport fix */
+@supports (height: 100dvh) {
+  .min-h-screen {
+    min-height: 100dvh;
+  }
 }
